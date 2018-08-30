@@ -1,0 +1,106 @@
+#
+#   jNBT
+#   version 0.dev3
+#   created by: jaylawl
+#   contact: jaylawlmc@gmail.com
+#
+#   dependencies:
+#   - Spigot 1.12.x                      | 
+#   - Skript (dev36 or later)            | https://github.com/bensku/Skript/releases
+#   - skript-mirror (0.17.2 or later)    | https://forums.skunity.com/resources/skript-mirror.254/
+#
+#   important:
+#       ! when using this, make sure this file is loaded as early as possible
+#       ! example:
+#           - place the file in a folder called "Skript/plugins/_library/"
+#           - prefix the file with "_", like "_jNBT.sk"
+#           - this will make the file load before others, because Skript loads files alphabetically
+#
+#   changelogs:
+#       0.dev1:
+#           - release
+#
+
+import: 
+	org.bukkit.Bukkit
+option nms:
+	get:
+		set {_nms} to Bukkit.getServer().getClass().getPackage().getName().split("\.")[3]
+		return "net.minecraft.server.%{_nms}%"
+
+option ver:
+	get:
+		return Bukkit.getServer().getClass().getPackage().getName().split("\.")[3]
+
+import:
+	{@nms}.MojangsonParser
+	{@nms}.NBTTagCompound
+	{@nms}.Entity
+	{@nms}.TileEntity
+	{@nms}.BlockPosition
+	{@nms}.Items
+	org.bukkit.craftbukkit.{@ver}.inventory.CraftItemStack
+	
+options:
+	prefix : &f[&djNBT&f]&r
+	
+on load:
+	"%{NBT::nms}%" != "net.minecraft.server.v1_12_R1"
+	send "{@prefix} &4WARN: &cjNBT has only been tested on MC 1.12" to console
+
+
+		
+object property [item(-| )]nbt:
+	return type: string
+	get:
+		set {_i} to expression-1
+		set {_nbt} to CraftItemStack.asNMSCopy({_i}).getTag()
+		return {_nbt} if "%{_nbt}%" != "{}" else "<none>"
+		
+expression:
+	patterns:
+		%item% with (custom[ized]|add(ed|itional)) [item(-| )]nbt %string%
+	return type: item
+	get:
+		set {_i} to expression-1
+		set {_i} to CraftItemStack.asNMSCopy({_i})
+		set {_nbt} to MojangsonParser.parse(expression-2)
+		{_i}.setTag({_nbt})
+		set {_r} to CraftItemStack.asBukkitCopy({_i})
+		return {_r}
+	
+entity property [entity(-| )]nbt:
+	return type: string
+	get:
+		set {_nbt} to new NBTTagCompound()
+		set {_e} to expression-1.getHandle()
+		{_e}.c({_nbt})
+		return {_nbt}
+	add:
+		set {_nbt} to new NBTTagCompound()
+		set {_e} to expression-1.getHandle()
+		{_e}.c({_nbt})
+		set {_nbt2} to MojangsonParser.parse(change value)
+		{_nbt}.a({_nbt2})
+		{_e}.f({_nbt})
+		
+block property [block(-| )]nbt:
+	return type: string
+	get:
+		set {_nbt} to new NBTTagCompound()
+		set {_w} to expression-1.getWorld().getHandle()
+		set {_te} to {_w}.getTileEntity(new BlockPosition(expression-1.getX(), expression-1.getY(), expression-1.getZ()))
+		{_te}.save({_nbt})
+		return {_nbt} if "%{_nbt}%" != "{}" else "<none>"
+	add:
+		set {_nbt} to new NBTTagCompound()
+		set {_w} to expression-1.getWorld().getHandle()
+		set {_te} to {_w}.getTileEntity(new BlockPosition(expression-1.getX(), expression-1.getY(), expression-1.getZ()))
+		{_te}.save({_nbt})
+		"%{_nbt}%" != "{}"
+		set {_nbt2} to MojangsonParser.parse(change value)
+		{_nbt}.a({_nbt2})
+		{_te}.load({_nbt})
+		{_te}.update()
+		set {_tet} to {_w}.getType(new BlockPosition(expression-1.getX(), expression-1.getY(), expression-1.getZ()))
+		{_w}.notify({_te}.getPosition(), {_tet}, {_tet}, 3)

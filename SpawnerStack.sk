@@ -1,0 +1,183 @@
+#! SpawnerStack
+# Hand crafted by ShaneBee
+# Version: Beta 1
+
+
+function config(t: text):
+	load yaml "plugins/SpawnerStack/config.yml" as "config"
+	if yaml node "Plugin Options.Prefix" in "config" doesn't have value:
+		set yaml value "Plugin Options.Prefix" in "config" to "&7[&bSpawner&3Stacker&7]"
+	if yaml node "MaxStackSize" in "config" doesn't have value:
+		set yaml value "MaxStackSize" in "config" to 10
+	if yaml node "SpawnerJoinRadius" in "config" doesn't have value:
+		set yaml value "SpawnerJoinRadius" in "config" to 10
+	if yaml node "MaxSpawnsPerSpawner" in "config" doesn't have value:
+		set yaml value "MaxSpawnsPerSpawner" in "config" to 1
+	if yaml node "SpawnRange" in "config" doesn't have value:
+		set yaml value "SpawnRange" in "config" to 4
+	if yaml node "SpawnDelay" in "config" doesn't have value:
+		set yaml value "SpawnDelay" in "config" to 20
+	if yaml node "SpawnMinDelay" in "config" doesn't have value:
+		set yaml value "SpawnMinDelay" in "config" to 60
+	if yaml node "SpawnMaxDelay" in "config" doesn't have value:
+		set yaml value "SpawnMaxDelay" in "config" to 120
+	if yaml node "RequiredPlayerRange" in "config" doesn't have value:
+		set yaml value "RequiredPlayerRange" in "config" to 16
+	if yaml node "Spawner Blacklist" in "config" doesn't have value:
+		set yaml list "Spawner Blacklist" in "config" to "Bat" and "Iron Golem"
+	set {SpawnerStack::prefix} to yaml value "Plugin Options.Prefix" in "config"
+	set {SpawnerStack::JoinRadius} to yaml value "SpawnerJoinRadius" in "config"
+	set {SpawnerStack::maxstack} to yaml value "MaxStackSize" in "config"
+	set {SpawnerStack::MaxSpawnsPerSpawner} to yaml value "MaxSpawnsPerSpawner" in "config"
+	set {SpawnerStack::SpawnRange} to yaml value "SpawnRange" in "config"
+	set {SpawnerStack::SpawnDelay} to yaml value "SpawnDelay" in "config"
+	set {SpawnerStack::SpawnMinDelay} to yaml value "SpawnMinDelay" in "config"
+	set {SpawnerStack::SpawnMaxDelay} to yaml value "SpawnMaxDelay" in "config" 
+	set {SpawnerStack::RequiredPlayerRange} to yaml value "RequiredPlayerRange" in "config"
+	set {SpawnerStack::BlackList::*} to yaml list "Spawner Blacklist" in "config"
+	set header of "config" to "SpawnerStack" and "Hand crafted by: ShaneBee" and "https://www.ShaneBee.tk" and " " and "For more info check out *insert spigot link here*"
+	set comments of yaml node "SpawnerJoinRadius" in "config" to "The radius that spawners will attempt to join together"
+	set comments of yaml node "MaxStackSize" from "config" to "Spawner Options" and "" and "" and "Set the maximun amount of spawners stacked in one area"
+	set comments of yaml node "MaxSpawnsPerSpawner" in "config" to "How many mobs to attempt to spawn each time." and "Note: Requires the MinSpawnDelay property to also be set." and "This is multiplied by the amount of stacks"
+	set comments of yaml node "SpawnRange" from "config" to "The radius around which the spawner attempts to place mobs randomly" and "Not effected by stack size"
+	set comments of yaml node "SpawnDelay" from "config" to "Ticks until next spawn. If 0, it will spawn immediately when a player enters its range." and "Not affected by stack size"
+	set comments of yaml node "SpawnMinDelay" from "config" to "The minimum random delay for the next spawn delay. May be equal to MaxSpawnDelay" and "Not affected by stack size"
+	set comments of yaml node "SpawnMaxDelay" from "config" to "The maximum random delay for the next spawn delay. Warning: Setting this value to 0 crashes Minecraft." and "Set to at least 1. Note: Requires the MinSpawnDelay property to also be set." and "Not affected by stack size"
+	set comments of yaml node "RequiredPlayerRange" from "config" to "Overrides the block radius of the sphere of activation by players for this spawner." and "Note that for every gametick, a spawner will check all players in the current world to test whether a player is within this sphere." and "Not affected by stack size"
+	set comments of yaml node "Spawner Blacklist" from "config" to "Blacklist of spawners a player can not pickup/stack"
+	save yaml "config"
+	unload yaml "config"
+
+on load:
+	config("load")
+	wait 1 second
+	send "%{SpawnerStack::prefix}% &2Config loaded successfully" to console
+
+
+on place of spawner:
+	if name of player's tool contains "x":
+		if player has permission "spawnerstack.place":
+			set {_name::*} to uncolored display name of player's tool split at " "
+			set {_num::*} to {_name::1} split at "x"
+			loop blocks in radius {SpawnerStack::JoinRadius} around event-block:
+				if loop-block is a spawner:
+					if {spawner::%location of loop-block%} is player:
+						if {spawner::%location of loop-block%::type} = {_name::2}:
+							cancel event
+							set {_newsize} to {spawner::%location of loop-block%::size} + {_num::1} parsed as number
+							if {_newsize} <= {SpawnerStack::maxstack}:
+								remove 1 of player's tool from player
+								set {_max} to {_newsize} * 5
+								set {_maxspawns} to {SpawnerStack::MaxSpawnsPerSpawner} * "%{_newsize}%" parsed as number
+								add "{SpawnCount:%{_maxspawns}%,MaxNearbyEntities:%{_max}%,SpawnRange:%{SpawnerStack::SpawnRange}%,Delay:%{SpawnerStack::SpawnDelay}%,MinSpawnDelay:%{SpawnerStack::SpawnMinDelay}%,MaxSpawnDelay:%{SpawnerStack::SpawnMaxDelay}%,RequiredPlayerRange:%{SpawnerStack::RequiredPlayerRange}%,SpawnData:{id:""%{_name::2}%""},SpawnPotentials:[]}" to nbt of loop-block
+								delete holo object "%location of loop-block%"
+								create holo object "&c%{_newsize}%x &b%{_name::2}% SPAWNER" with id "%location of loop-block%" at location 1 meter above location of loop-block
+								set {spawner::%location of loop-block%::name} to "&c%{_newsize}%x &b%{_name::2}% SPAWNER"
+								set {spawner::%location of loop-block%::type} to {_name::2}
+								set {spawner::%location of loop-block%::size} to {_newsize}
+								set {spawner::%location of loop-block%} to player
+								send "%{SpawnerStack::prefix}% - &aYour spawner was stacked with a nearby spawner"
+								stop
+							else:
+								send "%{SpawnerStack::prefix}% - &cYou have too many spawners stacked in this area right now, try moving further away" to player
+								stop
+			set {_name::*} to uncolored display name of player's tool split at " "
+			set {_num::*} to {_name::1} split at "x"
+			set {_max} to {_num::1} parsed as number * 5
+			set {_maxspawns} to "%{_num::1}%" parsed as number * {SpawnerStack::MaxSpawnsPerSpawner}
+			add "{SpawnCount:%{_maxspawns} %,MaxNearbyEntities:%{_max}%,SpawnRange:%{SpawnerStack::SpawnRange}%,Delay:%{SpawnerStack::SpawnDelay}%,MinSpawnDelay:%{SpawnerStack::SpawnMinDelay}%,MaxSpawnDelay:%{SpawnerStack::SpawnMaxDelay}%,RequiredPlayerRange:%{SpawnerStack::RequiredPlayerRange}%,SpawnData:{id:""%{_name::2}%""},SpawnPotentials:[]}" to nbt of event-block
+			create holo object name of player's tool with id "%event-location%" at location 1 meter above event-location
+			set {spawner::%event-location%::name} to "&c%{_num::1}%x &b%{_name::2}% SPAWNER"
+			set {spawner::%event-location%::type} to {_name::2}
+			set {spawner::%event-location%::size} to {_num::1} parsed as number
+			set {spawner::%event-location%} to player
+		else:
+			cancel event
+			send "%{SpawnerStack::prefix}% - &cYou do not have permission to place spawners"
+			
+on block break:
+	if event-block is a spawner:
+		if {spawner::%event-location%} is set:
+			if {spawner::%event-location%} = player:
+				if player has permission "spawnerstack.pickup.own":
+					if player's tool is a diamond pickaxe of silk touch:
+						drop 1 spawner named "%{spawner::%event-location%::name}%" at event-location without velocity
+					delete holo object "%event-location%"
+					delete {spawner::%event-location%::name}
+					delete {spawner::%event-location%::type}
+					delete {spawner::%event-location%::size}
+					delete {spawner::%event-location%}
+				else:
+					send "%{SpawnerStack::prefix}% - &cYou do not have permission to pickup your own spawners"
+			else:
+				cancel event
+				send "%{SpawnerStack::prefix}% - &cThis spawner is owned by &b%{spawner::%event-location%}%"
+		else:
+			if player's tool is a diamond pickaxe of silk touch:
+				if player has permission "spawnerstack.pickup.natural":
+					set {_tag} to "%nbt of event-block%"
+					set {_tag::*} to {_tag} split at "{"
+					set {_tag::*} to {_tag::3} split at "}"
+					set {_tag::*} to {_tag::1} split at ":"
+					replace all """" with "" in {_tag::3}
+					replace all """}" with "" in {_tag::3}
+					set {_tag} to capitalized "%{_tag::3}%"
+					if {SpawnerStack::BlackList::*} does not contain {_tag}:
+						drop 1 spawner named "&c1x &b%{_tag}% SPAWNER" at event-location without velocity
+
+command /spawner [<text>] [<offline player=%player%>] [<entity type>] [<integer=1>]:
+	trigger:
+		if arg-1 is set:
+			if arg-1 is "give":
+				if sender has permission "spawnerstack.admin":
+					set {_name} to capitalized "%arg-3%"
+					replace all " " with "_" in {_name}
+					if arg-3 is set:
+						if arg-2 is online:
+							set {_p} to arg-2
+							give {_p} 1 spawner named "&c%arg-4%x &b%{_name}% SPAWNER"
+						else:
+							send "%{SpawnerStack::prefix}% &7- &b%arg-2% &cis not online"
+					else:
+						send "%{SpawnerStack::prefix}% &7- &6Select a mob type"
+				else:
+					send "%{SpawnerStack::prefix}% - &cYou do not have permission to use this command"
+			if arg-1 is "locate":
+				if sender has permission "spawnerstack.admin":
+					send ""
+					send "%{SpawnerStack::prefix}% - &6Spawners owned by &b%arg-2%"
+					send "**&7&oClick location to TP to that spawner&r**"
+					loop {spawner::*}:
+						if {spawner::%loop-index%} is arg-2:
+							send "&7&lType: &b%{spawner::%loop-index%::type}% &7&lStack Size: &b%{spawner::%loop-index%::size}% <tooltip:&6Click to TP><run command:/customtp %loop-index%>&7&lLocation: &b%loop-index%<reset>"
+				else:
+					send "%{SpawnerStack::prefix}% &7- &cYou do not have permission to use this command"
+			if arg-1 is "reload":
+				if sender has permission "spawnerstack.admin":
+					config("text")
+					send "%{SpawnerStack::prefix}% &7- &aConfig reloaded"
+				else:
+					send "%{SpawnerStack::prefix}% &7- &cYou do not have permission to use this command"
+		else:
+			send ""
+			send "%{SpawnerStack::prefix}% &7- Help Menu"
+			send ""
+			send "&7<&aRequired&7> [&6Optional&7] - &7&oHover over arguments for more info"
+			send ""
+			send "&b/spawner give &7<tooltip:&bPlayer&7: If left blank, defaults to yourself>[&6player&7]<reset> &7<tooltip:&bEntity&7: Pig, Sheep, Cow, Zombie, etc.><&aentity type&7><reset> <tooltip:&bStack Size&7: The pre-determined stack size, default &a(&7if not entered&a)&7 is 1>&7[&6stack size&7]<reset> &7- Gives a spawner to a player or yourself"
+			send "&b/<tooltip:&6Click to start command><suggest command:/spawner locate>spawner locate <reset> &7<tooltip:&bPlayer&7: If left blank, defaults to yourself>[&6player&7]<reset> &7- Shows locations for player's spawner, click locatio to TP to spawner"
+			send "&b/<tooltip:&6Click to reload><run command:/spawner reload>spawner reload<reset> &7- Reloads the SpawnerStack config &o(use this after making changes to the config)"
+
+command /customtp <text>:
+	executable by: players
+	trigger:
+		if player has permission "spawnerstack.admin":
+			set {_world::*} to arg-1 split at ":"
+			set {_world} to {_world::1}
+			set {_loc::*} to {_world::2} split at ","
+			teleport player to location({_loc::1} parsed as number, {_loc::2} parsed as number + 1, {_loc::3} parsed as number, {_world::1} parsed as world)
+		else:
+			send "%{SpawnerStack::prefix}% &7- &cYou do not have permission to use this command"
+
+
+
